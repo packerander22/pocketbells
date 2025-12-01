@@ -204,7 +204,8 @@
         rgba(248,250,252,0.7) 40%,
         rgba(248,250,252,0.25) 100%);
       box-shadow: 0 12px 26px rgba(15, 23, 42, 0.45);
-      transform-origin: 50% 15%;
+      /* Center pivot so left/right don't sag */
+      transform-origin: 50% 50%;
       transform: translateY(0px) rotate(0deg);
       transition: transform 0.09s ease-out;
     }
@@ -413,7 +414,7 @@
 
     // One pure sine note, loud as we can go without adding overtones.
     // velocity 0..1 -> gain 0.7..1.0
-    // visualDir: "left" | "right" | "up" | "down" | null
+    // visualDir: "left" | "right" | "up" | "down" | diagonals | null
     function playBell(note, velocity = 1, visualDir = null) {
       if (!note) return;
       ensureAudioCtx();
@@ -460,7 +461,7 @@
       const minAngle = 10;   // degrees
       const maxAngle = 32;   // degrees
       const amp = minAngle + (maxAngle - minAngle) * vel;
-      const verticalOffset = amp; // same scale as tilt for consistency
+      const offset = amp; // same magnitude in all directions
 
       let dir = visualDir;
       if (!dir) {
@@ -468,25 +469,42 @@
       }
 
       let transform;
-      if (dir === "left") {
-        transform = `translateY(0px) rotate(${-amp}deg)`;
-      } else if (dir === "right") {
-        transform = `translateY(0px) rotate(${amp}deg)`;
-      } else if (dir === "up") {
-        transform = `translateY(${-verticalOffset}px) rotate(0deg)`;
-      } else if (dir === "down") {
-        transform = `translateY(${verticalOffset}px) rotate(0deg)`;
-      } else {
-        transform = `translateY(0px) rotate(${(Math.random() < 0.5 ? -1 : 1) * amp}deg)`;
+      switch (dir) {
+        case "left":
+          transform = `translate(0px, 0px) rotate(${-amp}deg)`;
+          break;
+        case "right":
+          transform = `translate(0px, 0px) rotate(${amp}deg)`;
+          break;
+        case "up":
+          transform = `translate(0px, ${-offset}px) rotate(0deg)`;
+          break;
+        case "down":
+          transform = `translate(0px, ${offset}px) rotate(0deg)`;
+          break;
+        case "up-right":
+          transform = `translate(${offset * 0.7}px, ${-offset * 0.7}px) rotate(${amp * 0.6}deg)`;
+          break;
+        case "up-left":
+          transform = `translate(${-offset * 0.7}px, ${-offset * 0.7}px) rotate(${-amp * 0.6}deg)`;
+          break;
+        case "down-right":
+          transform = `translate(${offset * 0.7}px, ${offset * 0.7}px) rotate(${amp * 0.6}deg)`;
+          break;
+        case "down-left":
+          transform = `translate(${-offset * 0.7}px, ${offset * 0.7}px) rotate(${-amp * 0.6}deg)`;
+          break;
+        default:
+          transform = `translate(0px, 0px) rotate(${(Math.random() < 0.5 ? -1 : 1) * amp}deg)`;
       }
 
       bellRing.style.transform = transform;
       setTimeout(() => {
-        bellRing.style.transform = "translateY(0px) rotate(0deg)";
+        bellRing.style.transform = "translate(0px, 0px) rotate(0deg)";
       }, 180);
     }
 
-    // ---- MOTION HANDLING (peak + directional change) ----
+    // ---- MOTION HANDLING (peak + directional change, with 8-way visual) ----
     let currentNote = null;
     let lastRingTime = 0;
 
@@ -499,29 +517,46 @@
     let lastMagnitude = null;
     let lastDelta = 0;              // previous signed delta
 
-    // Decide visual direction from *current* acceleration
+    // Decide visual direction from *current* acceleration, with diagonals.
     function computeVisualDirFromAccel(ax, ay, az) {
-      const absX = Math.abs(ax);
-      const absY = Math.abs(ay);
-      const absZ = Math.abs(az);
+      // Collapse into screen-space 2D:
+      // horiz = X (left/right)
+      // vert  = combination of away/up vs toward/down
+      const horiz = ax;
+      const vert = (-az) + (-ay);
+      //  -az: away (forward) => positive, toward => negative
+      //  -ay: up => positive, down => negative
 
-      const maxComp = Math.max(absX, absY, absZ);
-
-      // If everything is tiny / noisy, just fall back
-      if (maxComp < 0.8) {
+      const mag = Math.sqrt(horiz * horiz + vert * vert);
+      if (mag < 0.8) {
+        // Too small / noisy -> fallback
         return Math.random() < 0.5 ? "left" : "right";
       }
 
-      if (maxComp === absX) {
-        // X axis: screen plane, positive to the right
-        return ax > 0 ? "right" : "left";
-      } else if (maxComp === absY) {
-        // Y axis: screen plane, positive towards the top
-        return ay > 0 ? "up" : "down";
-      } else {
-        // Z axis: perpendicular to screen, positive out of screen (toward you)
-        // Map toward you to "up", away from you to "down"
-        return az > 0 ? "up" : "down";
+      const angle = Math.atan2(vert, horiz); // -π..π, 0 = right, π/2 = up
+
+      const step = Math.PI / 4; // 45°
+      let idx = Math.round(angle / step); // snap to nearest 45°
+      idx = (idx + 8) % 8; // normalize to 0..7
+
+      // 0: right
+      // 1: up-right
+      // 2: up
+      // 3: up-left
+      // 4: left
+      // 5: down-left
+      // 6: down
+      // 7: down-right
+      switch (idx) {
+        case 0: return "right";
+        case 1: return "up-right";
+        case 2: return "up";
+        case 3: return "up-left";
+        case 4: return "left";
+        case 5: return "down-left";
+        case 6: return "down";
+        case 7: return "down-right";
+        default: return "right";
       }
     }
 
@@ -585,7 +620,7 @@
           const maxVel = 1.0;
           const velocity = minVel + t * (maxVel - minVel);
 
-          // Visual direction is based on the *current* acceleration vector
+          // Visual direction is based on the *current* acceleration vector, snapped to 8 dirs
           const visualDir = computeVisualDirFromAccel(ax, ay, az);
 
           playBell(currentNote, velocity, visualDir);
