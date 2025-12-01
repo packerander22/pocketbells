@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bell Phone Choir</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #111827;
+      --text: #f9fafb;
+      --accent: #fbbf24;
+      --card: #1f2937;
+      --border: #374151;
+      --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.35);
+      --radius-xl: 1.5rem;
+      --radius-full: 999px;
+      --transition-fast: 0.18s ease-out;
+      --transition-med: 0.25s ease-out;
+      --font-main: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-main);
+      background: radial-gradient(circle at top, #111827 0, #020617 55%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+      margin: auto;
+      padding: 1.5rem 1.2rem 2.5rem;
+    }
+
+    .card {
+      background: radial-gradient(circle at top left, #1f2937 0, #020617 70%);
+      border-radius: 1.75rem;
+      border: 1px solid #111827;
+      box-shadow: var(--shadow-soft);
+      padding: 1.25rem 1.4rem 1.5rem;
+      backdrop-filter: blur(16px);
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .title span.wave {
+      font-size: 1.35rem;
+      display: inline-block;
+      animation: wave 1.5s ease-in-out infinite;
+      transform-origin: 70% 70%;
+    }
+
+    @keyframes wave {
+      0% { transform: rotate(0deg); }
+      25% { transform: rotate(15deg); }
+      50% { transform: rotate(0deg); }
+      75% { transform: rotate(-10deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      line-height: 1.4;
+      margin-bottom: 0.8rem;
+    }
+
+    .note-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.9rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .note-btn {
+      position: relative;
+      border: none;
+      border-radius: 1.1rem;
+      padding: 0.65rem 0.4rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #0b1120;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+      transform: translateY(0);
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+        filter var(--transition-fast);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+
+    .note-btn span.label {
+      font-size: 0.85rem;
+    }
+
+    .note-btn span.sub {
+      font-size: 0.7rem;
+      opacity: 0.9;
+    }
+
+    .note-btn:active {
+      transform: translateY(2px) scale(0.98);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+      filter: brightness(0.95);
+    }
+
+    .note-btn:hover {
+      filter: brightness(1.05);
+    }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.7rem;
+      font-size: 0.8rem;
+      opacity: 0.82;
+    }
+
+    .info-row strong {
+      font-weight: 600;
+    }
+
+    .tiny-pill {
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(248, 250, 252, 0.15);
+      padding: 0.2rem 0.55rem;
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    /* PLAY SCREEN */
+
+    .play-screen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #020617;
+      padding: 1.2rem;
+    }
+
+    .play-screen.active {
+      display: flex;
+    }
+
+    .play-note-label {
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.2rem;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    .play-note-sub {
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      margin-bottom: 1.2rem;
+      opacity: 0.9;
+    }
+
+    .sensitivity-pill {
+      background: rgba(15, 23, 42, 0.16);
+      border-radius: var(--radius-full);
+      padding: 0.3rem 0.8rem;
+      font-size: 0.78rem;
+      display: inline-flex;
+      gap: 0.35rem;
+      align-items: center;
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      margin-bottom: 1rem;
+    }
+
+    .bell-visual {
+      width: 150px;
+      height: 150px;
+      border-radius: 40% 40% 50% 50%;
+      border: 4px solid rgba(15, 23, 42, 0.4);
+      background: rgba(248, 250, 252, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.35);
+      transform-origin: 50% 10%;
+      transform: rotate(0deg);
+      transition: transform 0.08s ease-out, box-shadow 0.1s ease-out, background 0.12s ease-out;
+      margin-bottom: 1.1rem;
+    }
+
+    .bell-visual.ping {
+      background: rgba(248, 250, 252, 0.35);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.55);
+    }
+
+    .bell-clapper {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      box-shadow: 0 4px 8px rgba(15, 23, 42, 0.6);
+    }
+
+    .motion-hints {
+      font-size: 0.85rem;
+      max-width: 19rem;
+      line-height: 1.5;
+      opacity: 0.95;
+      margin-bottom: 1.4rem;
+    }
+
+    .back-btn {
+      position: fixed;
+      top: 0.9rem;
+      left: 0.9rem;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(15, 23, 42, 0.4);
+      background: rgba(248, 250, 252, 0.85);
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      cursor: pointer;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.3);
+    }
+
+    .back-btn:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 4px 8px rgba(15, 23, 42, 0.45);
+    }
+
+    .perm-banner {
+      margin-top: 0.8rem;
+      font-size: 0.8rem;
+      opacity: 0.86;
+    }
+
+    .perm-banner button {
+      border-radius: var(--radius-full);
+      border: none;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.8rem;
+      margin-left: 0.35rem;
+      cursor: pointer;
+      background: rgba(248, 250, 252, 0.12);
+      color: var(--text);
+      border: 1px solid rgba(248, 250, 252, 0.18);
+    }
+
+    .perm-banner button:active {
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 400px) {
+      .card {
+        padding: 1rem 1.1rem 1.2rem;
+      }
+      .note-btn {
+        padding: 0.6rem 0.3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="home-screen">
+    <div class="card">
+      <div class="title-row">
+        <div class="title">
+          <span class="wave">🔔</span>
+          Bell Phone Choir
+        </div>
+      </div>
+      <p class="subtitle">
+        Pick a note, then swing your phone like a handbell. Small motion = soft ring;
+        big motion = loud ring. Uses Boomwhacker-style colors.
+      </p>
+
+      <div class="note-grid" id="note-grid">
+        <!-- Buttons injected by JS -->
+      </div>
+
+      <div class="info-row">
+        <span>
+          <strong>How it works:</strong> tap a note → full-screen bell → swing to ring.
+        </span>
+      </div>
+
+      <div class="perm-banner" id="perm-banner">
+        Some phones (especially iPhones) require permission for motion sensors.
+        <button id="req-permission-btn">Enable motion</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="play-screen" id="play-screen">
+    <button class="back-btn" id="back-btn">
+      ← Change note
+    </button>
+
+    <div class="play-note-label" id="play-note-label">C</div>
+    <div class="play-note-sub" id="play-note-sub">Boomwhacker Color</div>
+
+    <div class="sensitivity-pill">
+      🎚️ Swing strength → volume
+    </div>
+
+    <div class="bell-visual" id="bell-visual">
+      <div class="bell-clapper"></div>
+    </div>
+
+    <div class="motion-hints">
+      Hold your phone like a handbell and swing in a natural bell-ringing motion.
+      A gentle swing produces a soft ring; a stronger swing rings louder.
+    </div>
+  </div>
+
+  <script>
+    // ---- NOTE DATA (Boomwhacker-style mapping) ----
+    // Colors approximate classic Boomwhacker tubes
+    const NOTES = [
+      { name: "C", octave: 4, color: "#FF0000" }, // red
+      { name: "D", octave: 4, color: "#FF7F00" }, // orange
+      { name: "E", octave: 4, color: "#FFFF00" }, // yellow
+      { name: "F", octave: 4, color: "#00FF00" }, // green
+      { name: "G", octave: 4, color: "#0000FF" }, // blue
+      { name: "A", octave: 4, color: "#4B0082" }, // indigo
+      { name: "B", octave: 4, color: "#9400D3" }, // violet
+      { name: "C", octave: 5, color: "#FF1493" }, // high C: pink
+    ];
+
+    // ---- DOM ELEMENTS ----
+    const noteGrid = document.getElementById("note-grid");
+    const homeScreen = document.getElementById("home-screen");
+    const playScreen = document.getElementById("play-screen");
+    const playNoteLabel = document.getElementById("play-note-label");
+    const playNoteSub = document.getElementById("play-note-sub");
+    const bellVisual = document.getElementById("bell-visual");
+    const backBtn = document.getElementById("back-btn");
+    const permBanner = document.getElementById("perm-banner");
+    const reqPermBtn = document.getElementById("req-permission-btn");
+
+    // ---- AUDIO SETUP ----
+    let audioCtx = null;
+    function ensureAudioCtx() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function freqForNote(name, octave) {
+      const semitoneMap = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+      const n = semitoneMap[name] + (octave - 4) * 12;
+      // A4 = 440Hz, C4 is -9 semitones from A4
+      const a4Index = 9;
+      const noteIndex = n;
+      const semitonesFromA4 = noteIndex - a4Index;
+      return 440 * Math.pow(2, semitonesFromA4 / 12);
+    }
+
+    function playBell(note, velocity = 1) {
+      if (!note) return;
+      ensureAudioCtx();
+      const now = audioCtx.currentTime;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      const baseFreq = freqForNote(note.name, note.octave);
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(baseFreq * 2, now);
+
+      // Volume based on velocity (0-1), but ease it a bit
+      const maxGain = 0.6;
+      const vel = Math.min(Math.max(velocity, 0), 1);
+      const startGain = 0.02 + vel * (maxGain - 0.02);
+
+      gain.gain.setValueAtTime(startGain, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 1.4);
+
+      // Visual feedback
+      bellVisual.classList.add("ping");
+      const tiltDeg = 8 + vel * 10;
+      bellVisual.style.transform = `rotate(${(Math.random() < 0.5 ? 1 : -1) * tiltDeg}deg)`;
+      setTimeout(() => {
+        bellVisual.classList.remove("ping");
+        bellVisual.style.transform = "rotate(0deg)";
+      }, 150);
+    }
+
+    // ---- MOTION HANDLING ----
+    let currentNote = null;
+    let lastRingTime = 0;
+    const MIN_INTERVAL = 160; // ms between rings
+    const MIN_ACCEL = 6; // threshold for small ring
+    const MAX_ACCEL = 18; // strong swing
+
+    function handleMotion(event) {
+      if (!currentNote) return;
+      const acc = event.accelerationIncludingGravity || event.acceleration;
+      if (!acc) return;
+      const ax = acc.x || 0;
+      const ay = acc.y || 0;
+      const az = acc.z || 0;
+      const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+
+      const now = performance.now();
+      if (now - lastRingTime < MIN_INTERVAL) return;
+      if (magnitude < MIN_ACCEL) return;
+
+      lastRingTime = now;
+
+      // Map magnitude between MIN_ACCEL and MAX_ACCEL to 0..1
+      const clamped = Math.min(Math.max(magnitude, MIN_ACCEL), MAX_ACCEL);
+      const velocity = (clamped - MIN_ACCEL) / (MAX_ACCEL - MIN_ACCEL);
+
+      playBell(currentNote, velocity);
+    }
+
+    function startMotionListening() {
+      window.addEventListener("devicemotion", handleMotion);
+    }
+
+    function stopMotionListening() {
+      window.removeEventListener("devicemotion", handleMotion);
+    }
+
+    // ---- PERMISSION HANDLING (iOS) ----
+    async function requestMotionPermission() {
+      try {
+        if (
+          typeof DeviceMotionEvent !== "undefined" &&
+          typeof DeviceMotionEvent.requestPermission === "function"
+        ) {
+          const res = await DeviceMotionEvent.requestPermission();
+          if (res === "granted") {
+            permBanner.style.display = "none";
+            return true;
+          } else {
+            alert("Motion permission was not granted. You can still tap the bell to test sound.");
+            return false;
+          }
+        } else {
+          // Non iOS devices typically don't need explicit permission
+          permBanner.style.display = "none";
+          return true;
+        }
+      } catch (err) {
+        console.error("Motion permission error:", err);
+        return false;
+      }
+    }
+
+    reqPermBtn.addEventListener("click", requestMotionPermission);
+
+    // ---- UI / NAVIGATION ----
+    function showPlayScreen(note) {
+      currentNote = note;
+      playNoteLabel.textContent = `${note.name}${note.octave}`;
+      playNoteSub.textContent = "Boomwhacker-style color";
+      playScreen.style.background = note.color;
+      homeScreen.style.display = "none";
+      playScreen.classList.add("active");
+
+      startMotionListening();
+
+      // Also allow tap on bell as fallback (if motion doesn't work)
+      bellVisual.onclick = () => playBell(currentNote, 0.7);
+    }
+
+    function showHomeScreen() {
+      currentNote = null;
+      stopMotionListening();
+      playScreen.classList.remove("active");
+      homeScreen.style.display = "flex";
+    }
+
+    backBtn.addEventListener("click", showHomeScreen);
+
+    // ---- INIT NOTE BUTTONS ----
+    function initNoteButtons() {
+      NOTES.forEach((n) => {
+        const btn = document.createElement("button");
+        btn.className = "note-btn";
+        btn.style.background = n.color;
+
+        const label = document.createElement("span");
+        label.className = "label";
+        label.textContent = `${n.name}${n.octave}`;
+        const sub = document.createElement("span");
+        sub.className = "sub";
+        sub.textContent = "tap to ring";
+
+        btn.appendChild(label);
+        btn.appendChild(sub);
+
+        btn.addEventListener("click", async () => {
+          // Audio context must start in user gesture
+          ensureAudioCtx();
+
+          // Try to request motion permission on supported devices
+          await requestMotionPermission();
+          showPlayScreen(n);
+        });
+
+        noteGrid.appendChild(btn);
+      });
+    }
+
+    initNoteButtons();
+  </script>
+</body>
+</html>
