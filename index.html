@@ -231,7 +231,7 @@
 
     .sustain-wrapper {
       width: 100%;
-      max-width: 220px; /* narrower slider */
+      max-width: 220px;
       margin-top: 0.4rem;
       font-size: 0.8rem;
       opacity: 0.9;
@@ -322,7 +322,7 @@
     <div class="sustain-wrapper">
       <div class="sustain-label-row">
         <span>Sustain</span>
-        <span id="sustain-value-label">Medium</span>
+        <span id="sustain-value-label">Long</span>
       </div>
       <input
         type="range"
@@ -331,7 +331,7 @@
         min="0"
         max="1"
         step="0.01"
-        value="0.5"
+        value="1"
       />
     </div>
   </div>
@@ -366,7 +366,7 @@
 
     // ---- AUDIO SETUP ----
     let audioCtx = null;
-    let sustainFactor = 0.5; // 0..1
+    let sustainFactor = 1.0; // 0..1, default max
 
     function ensureAudioCtx() {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -403,6 +403,9 @@
       return "Long";
     }
 
+    // initialize sustain label from default slider value
+    sustainValueLabel.textContent = labelForSustain(parseFloat(sustainSlider.value));
+
     sustainSlider.addEventListener("input", () => {
       sustainFactor = parseFloat(sustainSlider.value); // 0..1
       sustainValueLabel.textContent = labelForSustain(sustainFactor);
@@ -437,9 +440,9 @@
 
       gain.gain.setValueAtTime(gainValue, now);
 
-      // Sustain: 0 => old mid (~1.375s), 1 => ~3s
-      const MIN_SUSTAIN = 1.375;
-      const MAX_SUSTAIN = 3.0;
+      // Sustain: min ≈ old 50%, max ≈ 5s
+      const MIN_SUSTAIN = 1.375; // seconds
+      const MAX_SUSTAIN = 5.0;   // seconds
       const sustainDuration =
         MIN_SUSTAIN + sustainFactor * (MAX_SUSTAIN - MIN_SUSTAIN);
 
@@ -464,14 +467,15 @@
 
       let transform;
       if (dir === "left") {
-        // rotate left, no vertical offset
+        // rotate left
         transform = `translateY(0px) rotate(${-amp}deg)`;
       } else if (dir === "right") {
         transform = `translateY(0px) rotate(${amp}deg)`;
       } else if (dir === "up") {
-        // straight up/down motion, no rotation
+        // move up (toward you)
         transform = `translateY(${-verticalOffset}px) rotate(0deg)`;
       } else if (dir === "down") {
+        // move down (away from you)
         transform = `translateY(${verticalOffset}px) rotate(0deg)`;
       } else {
         transform = `translateY(0px) rotate(${(Math.random() < 0.5 ? -1 : 1) * amp}deg)`;
@@ -483,7 +487,7 @@
       }, 180);
     }
 
-    // ---- MOTION HANDLING (peak + directional change, build-vector-based) ----
+    // ---- MOTION HANDLING (peak + directional change, using build vector) ----
     let currentNote = null;
     let lastRingTime = 0;
 
@@ -501,27 +505,26 @@
 
     function computeVisualDirFromBuildVector() {
       const ax = buildAx;
-      const ay = buildAy;
       const az = buildAz;
 
       const absX = Math.abs(ax);
       const absZ = Math.abs(az);
 
-      // Horizontal dominates: map to left/right
-      if (absX >= absZ && absX > 0.8) {
-        // You swung right (ax > 0) → bell goes left
-        return ax > 0 ? "left" : "right";
-      }
-
-      // Forward/back dominates: map to up/down
+      // Forward/back dominates -> map to up/down (Z takes precedence)
       if (absZ > 0.8) {
-        // Assumption: phone upright, screen facing you.
-        // For most devices, swinging away (forward) gives az < 0.
-        // Away → bell down, toward → bell up.
+        // Phone upright, screen facing you:
+        // swing away (forward) ≈ az < 0 -> bell moves down
+        // swing toward you ≈ az > 0 -> bell moves up
         return az < 0 ? "down" : "up";
       }
 
-      // Fallback: just do a horizontal tilt
+      // Horizontal dominates -> map to left/right
+      if (absX > 0.8) {
+        // swing right (ax > 0) -> bell left
+        return ax > 0 ? "left" : "right";
+      }
+
+      // Fallback: small/noisy movement, just tilt horizontally
       return Math.random() < 0.5 ? "left" : "right";
     }
 
