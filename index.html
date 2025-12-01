@@ -15,7 +15,6 @@
       --radius-xl: 1.5rem;
       --radius-full: 999px;
       --transition-fast: 0.18s ease-out;
-      --transition-med: 0.25s ease-out;
       --font-main: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
         "Segoe UI", sans-serif;
     }
@@ -66,22 +65,19 @@
       letter-spacing: 0.02em;
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: 0.55rem;
     }
 
-    .title span.wave {
-      font-size: 1.35rem;
-      display: inline-block;
-      animation: wave 1.5s ease-in-out infinite;
-      transform-origin: 70% 70%;
-    }
-
-    @keyframes wave {
-      0% { transform: rotate(0deg); }
-      25% { transform: rotate(15deg); }
-      50% { transform: rotate(0deg); }
-      75% { transform: rotate(-10deg); }
-      100% { transform: rotate(0deg); }
+    .title-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 20%, #facc15 0, #f97316 40%, #b45309 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+      font-size: 1.25rem;
     }
 
     .subtitle {
@@ -147,19 +143,26 @@
       opacity: 0.82;
     }
 
-    .info-row strong {
-      font-weight: 600;
+    .perm-banner {
+      margin-top: 0.8rem;
+      font-size: 0.8rem;
+      opacity: 0.86;
     }
 
-    .tiny-pill {
+    .perm-banner button {
       border-radius: var(--radius-full);
-      border: 1px solid rgba(248, 250, 252, 0.15);
-      padding: 0.2rem 0.55rem;
-      font-size: 0.75rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      background: rgba(15, 23, 42, 0.7);
+      border: none;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.8rem;
+      margin-left: 0.35rem;
+      cursor: pointer;
+      background: rgba(248, 250, 252, 0.12);
+      color: var(--text);
+      border: 1px solid rgba(248, 250, 252, 0.18);
+    }
+
+    .perm-banner button:active {
+      transform: translateY(1px);
     }
 
     /* PLAY SCREEN */
@@ -212,28 +215,30 @@
     .bell-visual {
       width: 150px;
       height: 150px;
-      border-radius: 40% 40% 50% 50%;
+      border-radius: 50%; /* perfect circle */
       border: 4px solid rgba(15, 23, 42, 0.4);
-      background: rgba(248, 250, 252, 0.22);
+      background: radial-gradient(circle at 30% 20%, rgba(248, 250, 252, 0.96) 0,
+        rgba(248, 250, 252, 0.76) 40%, rgba(248, 250, 252, 0.35) 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       box-shadow: 0 10px 22px rgba(15, 23, 42, 0.35);
-      transform-origin: 50% 10%;
+      transform-origin: 50% 50%;
       transform: rotate(0deg);
       transition: transform 0.08s ease-out, box-shadow 0.1s ease-out, background 0.12s ease-out;
       margin-bottom: 1.1rem;
     }
 
     .bell-visual.ping {
-      background: rgba(248, 250, 252, 0.35);
+      background: radial-gradient(circle at 30% 20%, rgba(248, 250, 252, 1) 0,
+        rgba(248, 250, 252, 0.82) 40%, rgba(248, 250, 252, 0.45) 100%);
       box-shadow: 0 14px 30px rgba(15, 23, 42, 0.55);
     }
 
     .bell-clapper {
       width: 26px;
       height: 26px;
-      border-radius: 999px;
+      border-radius: 50%;
       background: rgba(15, 23, 42, 0.9);
       box-shadow: 0 4px 8px rgba(15, 23, 42, 0.6);
     }
@@ -267,28 +272,6 @@
       box-shadow: 0 4px 8px rgba(15, 23, 42, 0.45);
     }
 
-    .perm-banner {
-      margin-top: 0.8rem;
-      font-size: 0.8rem;
-      opacity: 0.86;
-    }
-
-    .perm-banner button {
-      border-radius: var(--radius-full);
-      border: none;
-      padding: 0.25rem 0.7rem;
-      font-size: 0.8rem;
-      margin-left: 0.35rem;
-      cursor: pointer;
-      background: rgba(248, 250, 252, 0.12);
-      color: var(--text);
-      border: 1px solid rgba(248, 250, 252, 0.18);
-    }
-
-    .perm-banner button:active {
-      transform: translateY(1px);
-    }
-
     @media (max-width: 400px) {
       .card {
         padding: 1rem 1.1rem 1.2rem;
@@ -300,11 +283,12 @@
   </style>
 </head>
 <body>
+  <!-- HOME SCREEN -->
   <div class="app" id="home-screen">
     <div class="card">
       <div class="title-row">
         <div class="title">
-          <span class="wave">🔔</span>
+          <div class="title-circle">🔔</div>
           Pocket BellChoir
         </div>
       </div>
@@ -324,12 +308,13 @@
       </div>
 
       <div class="perm-banner" id="perm-banner">
-        On iPhone, tap “Enable motion” and allow access when Safari asks.
+        On iPhone, you may need to tap “Enable motion” and allow when asked.
         <button id="req-permission-btn">Enable motion</button>
       </div>
     </div>
   </div>
 
+  <!-- PLAY SCREEN -->
   <div class="play-screen" id="play-screen">
     <button class="back-btn" id="back-btn">
       ← Change note
@@ -349,7 +334,7 @@
     <div class="motion-hints">
       Hold your phone like a handbell and swing in a natural bell-ringing motion.
       A gentle swing produces a soft ring; a stronger swing rings louder.
-      You can also tap the bell if motion doesn’t work.
+      You can also tap the circle if motion doesn’t work.
     </div>
   </div>
 
@@ -379,9 +364,24 @@
 
     // ---- AUDIO SETUP ----
     let audioCtx = null;
+
     function ensureAudioCtx() {
       if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        audioCtx = new AudioCtx();
+      }
+    }
+
+    async function resumeAudioCtx() {
+      ensureAudioCtx();
+      if (!audioCtx) return;
+      if (audioCtx.state === "suspended") {
+        try {
+          await audioCtx.resume();
+        } catch (e) {
+          console.warn("Audio resume error", e);
+        }
       }
     }
 
@@ -397,8 +397,8 @@
     function playBell(note, velocity = 1) {
       if (!note) return;
       ensureAudioCtx();
+      if (!audioCtx) return;
 
-      // extra safety for iOS: resume if suspended
       if (audioCtx.state === "suspended") {
         audioCtx.resume();
       }
@@ -409,61 +409,77 @@
       const gain = audioCtx.createGain();
 
       const baseFreq = freqForNote(note.name, note.octave);
-
       osc.type = "sine";
       osc.frequency.setValueAtTime(baseFreq * 2, now);
 
-      // Volume based on velocity (0-1), with a higher base for iOS
-      const maxGain = 0.6;
+      const maxGain = 0.5;
       const vel = Math.min(Math.max(velocity, 0), 1);
-      const startGain = 0.08 + vel * (maxGain - 0.08);
+      const startGain = 0.15 + vel * (maxGain - 0.15);
 
       gain.gain.setValueAtTime(startGain, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.0);
 
       osc.connect(gain);
       gain.connect(audioCtx.destination);
 
       osc.start(now);
-      osc.stop(now + 1.4);
+      osc.stop(now + 1.1);
 
       // Visual feedback
       bellVisual.classList.add("ping");
-      const tiltDeg = 8 + vel * 10;
-      bellVisual.style.transform = `rotate(${(Math.random() < 0.5 ? 1 : -1) * tiltDeg}deg)`;
+      const tiltDeg = 6 + vel * 8;
+      bellVisual.style.transform =
+        `rotate(${(Math.random() < 0.5 ? 1 : -1) * tiltDeg}deg)`;
       setTimeout(() => {
         bellVisual.classList.remove("ping");
         bellVisual.style.transform = "rotate(0deg)";
       }, 150);
     }
 
-    // ---- MOTION HANDLING ----
+    // ---- MOTION HANDLING (one ding per swing) ----
     let currentNote = null;
     let lastRingTime = 0;
-    const MIN_INTERVAL = 160; // ms between rings
-    const MIN_ACCEL = 6; // threshold for small ring
-    const MAX_ACCEL = 18; // strong swing
+
+    const MIN_INTERVAL = 220;      // ms between rings
+    const SWING_START_ACCEL = 11;  // must cross this to trigger a ring
+    const SWING_END_ACCEL   = 6;   // must drop below this before we can ring again
+    const MAX_ACCEL         = 22;  // upper bound for loudest swings
+
+    let inSwing = false; // true while we're "inside" a swing
 
     function handleMotion(event) {
       if (!currentNote) return;
+
       const acc = event.accelerationIncludingGravity || event.acceleration;
       if (!acc) return;
+
       const ax = acc.x || 0;
       const ay = acc.y || 0;
       const az = acc.z || 0;
       const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
 
       const now = performance.now();
+
+      // Reset swing once things calm down
+      if (magnitude < SWING_END_ACCEL) {
+        inSwing = false;
+      }
+
+      // If we're already in a swing or it's too soon since last ring, bail
+      if (inSwing) return;
       if (now - lastRingTime < MIN_INTERVAL) return;
-      if (magnitude < MIN_ACCEL) return;
 
-      lastRingTime = now;
+      // Only trigger when we newly cross the higher "start" threshold
+      if (magnitude >= SWING_START_ACCEL) {
+        inSwing = true;
+        lastRingTime = now;
 
-      // Map magnitude between MIN_ACCEL and MAX_ACCEL to 0..1
-      const clamped = Math.min(Math.max(magnitude, MIN_ACCEL), MAX_ACCEL);
-      const velocity = (clamped - MIN_ACCEL) / (MAX_ACCEL - MIN_ACCEL);
+        // Map magnitude between SWING_START_ACCEL and MAX_ACCEL to 0..1
+        const clamped = Math.min(Math.max(magnitude, SWING_START_ACCEL), MAX_ACCEL);
+        const velocity = (clamped - SWING_START_ACCEL) / (MAX_ACCEL - SWING_START_ACCEL);
 
-      playBell(currentNote, velocity);
+        playBell(currentNote, velocity);
+      }
     }
 
     function startMotionListening() {
@@ -474,7 +490,7 @@
       window.removeEventListener("devicemotion", handleMotion);
     }
 
-    // ---- PERMISSION HANDLING (iOS) ----
+    // ---- PERMISSION HANDLING (iOS motion) ----
     async function requestMotionPermission() {
       try {
         if (
@@ -486,11 +502,10 @@
             permBanner.style.display = "none";
             return true;
           } else {
-            alert("Motion permission denied. You can still tap the bell to ring.");
+            alert("Motion permission denied. You can still tap the circle to ring.");
             return false;
           }
         } else {
-          // Non-iOS devices or older iOS that doesn't need explicit permission
           permBanner.style.display = "none";
           return true;
         }
@@ -513,8 +528,8 @@
 
       startMotionListening();
 
-      // Fallback: tap the bell to ring
-      bellVisual.onclick = () => playBell(currentNote, 0.7);
+      // Fallback: tap the circle to ring
+      bellVisual.onclick = () => playBell(currentNote, 0.8);
     }
 
     function showHomeScreen() {
@@ -544,23 +559,15 @@
         btn.appendChild(sub);
 
         btn.addEventListener("click", async () => {
-          ensureAudioCtx();
+          // This tap is our user gesture: wake audio
+          await resumeAudioCtx();
 
-          // Make sure audio is actually running (iOS requirement)
-          if (audioCtx.state === "suspended") {
-            try {
-              await audioCtx.resume();
-            } catch (e) {
-              console.warn("Audio resume failed:", e);
-            }
-          }
-
-          // Try to request motion permission on supported devices
-          await requestMotionPermission();
+          // Ask for motion (if needed)
+          requestMotionPermission();
 
           showPlayScreen(n);
 
-          // Optional: immediate confirmation ding
+          // Immediate confirmation ding
           playBell(n, 0.7);
         });
 
@@ -569,6 +576,17 @@
     }
 
     initNoteButtons();
+
+    // Extra safety: resume audio on any touchstart
+    window.addEventListener(
+      "touchstart",
+      () => {
+        if (audioCtx && audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+      },
+      { passive: true }
+    );
   </script>
 </body>
 </html>
