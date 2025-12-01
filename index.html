@@ -323,9 +323,9 @@
     let audioCtx = null;
 
     function ensureAudioCtx() {
-      if (!audioCtx) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioCtx || audioCtx.state === "closed") {
         audioCtx = new AudioCtx();
       }
     }
@@ -351,8 +351,9 @@
       return 440 * Math.pow(2, semitonesFromA4 / 12);
     }
 
-    // velocity here becomes gain (we'll keep it 0.6–1.3 for loudness)
-    function playBell(note, velocity = 1) {
+    // velocity here becomes gain (we'll keep it 0.7–1.5 for loudness)
+    // visualDir: -1 or +1 for swing direction; null => random
+    function playBell(note, velocity = 1, visualDir = null) {
       if (!note) return;
       ensureAudioCtx();
       if (!audioCtx) return;
@@ -365,56 +366,88 @@
 
       const baseFreq = freqForNote(note.name, note.octave);
 
-      // Two oscillators (fundamental + overtone) so it's brighter / more piercing
-      const osc1 = audioCtx.createOscillator();
-      const osc2 = audioCtx.createOscillator();
+      // Single pure tone: no overtones
+      const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
-      osc1.type = "sine";
-      osc2.type = "sine";
-      osc1.frequency.setValueAtTime(baseFreq * 2, now);     // main
-      osc2.frequency.setValueAtTime(baseFreq * 3, now);     // overtone
+      osc.type = "sine";
+      // Use the note frequency (or 1 octave up if you prefer: baseFreq * 2)
+      osc.frequency.setValueAtTime(baseFreq, now);
 
       const vel = Math.min(Math.max(velocity, 0), 1);
-      const minVol = 0.6;   // already pretty loud
-      const maxVol = 1.3;   // >1 => can clip a bit, sounds louder
+      const minVol = 0.7;
+      const maxVol = 1.5; // >1 => a bit of clipping, louder
       const gainValue = minVol + vel * (maxVol - minVol);
 
       gain.gain.setValueAtTime(gainValue, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.0);
 
-      osc1.connect(gain);
-      osc2.connect(gain);
+      osc.connect(gain);
       gain.connect(audioCtx.destination);
 
-      osc1.start(now);
-      osc2.start(now);
-      osc1.stop(now + 1.1);
-      osc2.stop(now + 1.1);
+      osc.start(now);
+      osc.stop(now + 1.1);
 
-      // Visual: outer ring swings like a real bell (rotation around top)
+      // Visual: outer ring swings like a real bell (pivot around top)
       const minAngle = 10;   // degrees
       const maxAngle = 32;   // degrees
       const amp = minAngle + (maxAngle - minAngle) * vel;
-      const direction = Math.random() < 0.5 ? -1 : 1;
-      bellRing.style.transform = `rotate(${direction * amp}deg)`;
+
+      let dir = visualDir;
+      if (dir == null || dir === 0) {
+        dir = Math.random() < 0.5 ? -1 : 1;
+      }
+      bellRing.style.transform = `rotate(${dir * amp}deg)`;
       setTimeout(() => {
         bellRing.style.transform = "rotate(0deg)";
       }, 180);
     }
 
-    // ---- MOTION HANDLING (peak + directional change based) ----
+    // ---- MOTION HANDLING (peak + directional change, directional visual) ----
     let currentNote = null;
     let lastRingTime = 0;
 
-    const MIN_INTERVAL     = 260;   // ms between rings
-    const DELTA_RING_MIN   = 4.0;   // harder minimum threshold to trigger
-    const DELTA_RING_MAX   = 10.0;  // a strong swing that maps to full volume
-    const RESET_DELTA      = 1.5;   // below this, swing ends
+    const MIN_INTERVAL     = 280;    // ms between rings
+    const DELTA_RING_MIN   = 5.0;    // harder minimum threshold to trigger
+    const DELTA_RING_MAX   = 10.0;   // strong swing -> full volume
+    const RESET_DELTA      = 1.5;    // below this, swing ends
 
     let inSwing = false;
     let lastMagnitude = null;
-    let lastDelta = 0;              // previous signed delta
+    let lastDelta = 0;               // previous signed delta
+
+    // For visual direction: store the "build-up" direction vector
+    let buildAx = 0;
+    let buildAy = 0;
+    let buildAz = 0;
+
+    function computeVisualDirectionFromBuildVector() {
+      // Pick the axis with the largest magnitude and move opposite it
+      const ax = buildAx;
+      const ay = buildAy;
+      const az = buildAz;
+
+      const absX = Math.abs(ax);
+      const absY = Math.abs(ay);
+      const absZ = Math.abs(az);
+
+      // default direction
+      let dir = 1;
+
+      if (absX >= absY && absX >= absZ) {
+        // horizontal swing: right/left
+        // if initial acceleration was +X (to the right), bell swings left => dir = -1
+        dir = ax > 0 ? -1 : 1;
+      } else if (absY >= absX && absY >= absZ) {
+        // vertical swing: up/down; map to left/right visually
+        dir = ay > 0 ? -1 : 1;
+      } else {
+        // forward/back swing (Z); also map to left/right
+        dir = az > 0 ? -1 : 1;
+      }
+
+      return dir;
+    }
 
     function handleMotion(event) {
       if (!currentNote) return;
@@ -433,12 +466,23 @@
 
       if (lastMagnitude === null) {
         lastMagnitude = magnitude;
+        buildAx = ax;
+        buildAy = ay;
+        buildAz = az;
         return;
       }
 
-      const signedDelta = magnitude - lastMagnitude; // positive/negative
+      const signedDelta = magnitude - lastMagnitude; // positive/negative jerk
       const absDelta = Math.abs(signedDelta);
       const now = performance.now();
+
+      // Track build direction when we cross some motion
+      if (absDelta > DELTA_RING_MIN && Math.abs(lastDelta) <= absDelta) {
+        // store latest "strong" acceleration vector as build direction
+        buildAx = ax;
+        buildAy = ay;
+        buildAz = az;
+      }
 
       // Reset swing when jerk settles
       if (absDelta < RESET_DELTA) {
@@ -464,19 +508,21 @@
           inSwing = true;
           lastRingTime = now;
 
-          // Map peak from [DELTA_RING_MIN .. DELTA_RING_MAX] -> [0.0 .. 1.0]
+          // Map peak from [DELTA_RING_MIN .. DELTA_RING_MAX] -> [0..1]
           const clamped = Math.min(Math.max(peak, DELTA_RING_MIN), DELTA_RING_MAX);
           let t = (clamped - DELTA_RING_MIN) / (DELTA_RING_MAX - DELTA_RING_MIN); // 0..1
 
-          // Make the loudness ramp fast so most swings are very loud
-          t = Math.pow(t, 0.6); // exponent <1 => steeper near top
+          // Steep ramp so moderate swings are already loud
+          t = Math.pow(t, 0.6);
 
-          // Convert t to velocity: 0.25..1 so even min is fairly loud
-          const minVel = 0.25;
+          // Convert t to velocity: 0.3..1 so even min is decently loud
+          const minVel = 0.3;
           const maxVel = 1.0;
           const velocity = minVel + t * (maxVel - minVel);
 
-          playBell(currentNote, velocity);
+          const visualDir = computeVisualDirectionFromBuildVector();
+
+          playBell(currentNote, velocity, visualDir);
         }
       }
 
@@ -488,6 +534,9 @@
       lastMagnitude = null;
       lastDelta = 0;
       inSwing = false;
+      buildAx = 0;
+      buildAy = 0;
+      buildAz = 0;
       window.addEventListener("devicemotion", handleMotion);
     }
 
@@ -546,14 +595,14 @@
 
     backBtn.addEventListener("click", showNoteScreen);
 
-    // Tap note text to ring (full loudness)
+    // Tap note text to ring (full loudness, random visual dir)
     playNoteLabel.addEventListener("click", () => {
-      if (currentNote) playBell(currentNote, 1);
+      if (currentNote) playBell(currentNote, 1, null);
     });
 
-    // Tap bell graphic to ring (full loudness)
+    // Tap bell graphic to ring (full loudness, random visual dir)
     bellVisual.addEventListener("click", () => {
-      if (currentNote) playBell(currentNote, 1);
+      if (currentNote) playBell(currentNote, 1, null);
     });
 
     // ---- INIT NOTE BUTTONS ----
@@ -569,7 +618,7 @@
           await resumeAudioCtx();
           showPlayScreen(n);
           // Quick confirmation ring at full loudness
-          playBell(n, 1);
+          playBell(n, 1, null);
         });
 
         noteGrid.appendChild(btn);
@@ -578,16 +627,25 @@
 
     initNoteButtons();
 
-    // Extra safety: resume audio on any touchstart
+    // Extra safety: try to resume audio on any touchstart
     window.addEventListener(
       "touchstart",
       () => {
-        if (audioCtx && audioCtx.state === "suspended") {
-          audioCtx.resume();
-        }
+        resumeAudioCtx();
       },
       { passive: true }
     );
+
+    // Try to resume audio when coming back to the tab
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        resumeAudioCtx();
+      }
+    });
+
+    window.addEventListener("pageshow", () => {
+      resumeAudioCtx();
+    });
   </script>
 </body>
 </html>
