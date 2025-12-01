@@ -191,6 +191,7 @@
       width: 150px;
       height: 150px;
       margin-bottom: 1rem;
+      cursor: pointer;
     }
 
     .bell-ring {
@@ -204,7 +205,7 @@
         rgba(248,250,252,0.25) 100%);
       box-shadow: 0 12px 26px rgba(15, 23, 42, 0.45);
       transform-origin: 50% 50%;
-      transform: rotate(0deg);
+      transform: translate(0, 0) scale(1);
       transition: transform 0.08s ease-out;
     }
 
@@ -281,14 +282,14 @@
       C4
     </div>
 
-    <div class="bell-visual">
+    <div class="bell-visual" id="bell-visual">
       <div class="bell-ring" id="bell-ring"></div>
       <div class="bell-clapper"></div>
     </div>
 
     <div class="hint-text">
       Swing your phone in any direction to ring.
-      Tap the note if needed.
+      Tap the note or bell if needed.
     </div>
   </div>
 
@@ -315,6 +316,7 @@
     const backBtn = document.getElementById("back-btn");
     const playNoteLabel = document.getElementById("play-note-label");
     const bellRing = document.getElementById("bell-ring");
+    const bellVisual = document.getElementById("bell-visual");
 
     // ---- AUDIO SETUP ----
     let audioCtx = null;
@@ -366,10 +368,11 @@
       osc.type = "sine";
       osc.frequency.setValueAtTime(baseFreq * 2, now);
 
-      // Louder overall, scaled by swing strength (velocity 0..1)
-      const maxGain = 1.0;
+      // Velocity 0..1 -> gain 0.5..1.0 (so minimum is already loud)
       const vel = Math.min(Math.max(velocity, 0), 1);
-      const startGain = 0.4 + vel * (maxGain - 0.4); // base loud + extra for big swings
+      const minGain = 0.5;
+      const maxGain = 1.0;
+      const startGain = minGain + vel * (maxGain - minGain);
 
       gain.gain.setValueAtTime(startGain, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.0);
@@ -380,36 +383,39 @@
       osc.start(now);
       osc.stop(now + 1.1);
 
-      // Visual: only outer ring rotates to show strength
-      const maxAngle = 18; // degrees
-      const angle = (Math.random() < 0.5 ? 1 : -1) * (6 + vel * (maxAngle - 6));
-      bellRing.style.transform = `rotate(${angle}deg)`;
+      // Visual: outer ring "hits" the center then springs back
+      const maxPush = 6; // px inward
+      const push = 2 + vel * (maxPush - 2); // 2..6px
+      // Random direction so it feels organic
+      const angle = Math.random() * Math.PI * 2;
+      const dx = Math.cos(angle) * push;
+      const dy = Math.sin(angle) * push;
+
+      bellRing.style.transform = `translate(${dx}px, ${dy}px) scale(0.98)`;
       setTimeout(() => {
-        bellRing.style.transform = "rotate(0deg)";
+        bellRing.style.transform = "translate(0px, 0px) scale(1)";
       }, 140);
     }
 
-    // ---- MOTION HANDLING (jerk-based, omnidirectional) ----
+    // ---- MOTION HANDLING (peak + directional change based) ----
     let currentNote = null;
     let lastRingTime = 0;
 
-    const MIN_INTERVAL = 200;      // ms between rings
-    const SWING_START_DELTA = 4.5; // change in acceleration needed to trigger
-    const SWING_END_DELTA   = 1.5; // change below this resets the swing
-    const MAX_DELTA         = 12;  // upper bound for loudest swings
+    const MIN_INTERVAL = 220;       // ms between rings
+    const PEAK_DELTA = 7.0;         // how big the "build-up" must be
+    const RESET_DELTA = 2.0;        // below this, we consider the swing ended
+    const MAX_DELTA = 14.0;         // upper bound for loudest swings
 
     let inSwing = false;
     let lastMagnitude = null;
+    let lastDelta = 0;              // previous signed delta
 
     function handleMotion(event) {
       if (!currentNote) return;
 
-      // Prefer linear acceleration if available, else fall back to including gravity
+      // Prefer linear acceleration if available, else fall back
       let acc = event.acceleration;
-      if (
-        !acc ||
-        (acc.x === null && acc.y === null && acc.z === null)
-      ) {
+      if (!acc || (acc.x === null && acc.y === null && acc.z === null)) {
         acc = event.accelerationIncludingGravity;
       }
       if (!acc) return;
@@ -424,39 +430,54 @@
         return;
       }
 
-      const delta = Math.abs(magnitude - lastMagnitude);
-      lastMagnitude = magnitude;
-
+      const signedDelta = magnitude - lastMagnitude; // can be positive or negative
+      const absDelta = Math.abs(signedDelta);
       const now = performance.now();
 
-      // Reset swing when things calm down
-      if (delta < SWING_END_DELTA) {
+      // Reset swing when the jerk settles down
+      if (absDelta < RESET_DELTA) {
         inSwing = false;
       }
 
-      if (inSwing) return;
-      if (now - lastRingTime < MIN_INTERVAL) return;
+      // We want to ring AFTER a directional change:
+      // - previously building up (lastDelta large positive)
+      // - now decelerating / reversing (signedDelta < 0)
+      const justReversed =
+        lastDelta > PEAK_DELTA && signedDelta < 0;
 
-      if (delta >= SWING_START_DELTA) {
+      if (!inSwing &&
+          justReversed &&
+          now - lastRingTime > MIN_INTERVAL) {
+
         inSwing = true;
         lastRingTime = now;
 
-        // Map delta to 0..1
-        const clamped = Math.min(Math.max(delta, SWING_START_DELTA), MAX_DELTA);
-        const velocity = (clamped - SWING_START_DELTA) / (MAX_DELTA - SWING_START_DELTA);
+        // Use the SIZE of the previous peak to decide velocity (loudness)
+        const peak = Math.min(Math.abs(lastDelta), MAX_DELTA);
+        let rawVel = (peak - PEAK_DELTA) / (MAX_DELTA - PEAK_DELTA); // 0..1
+        rawVel = Math.max(0, Math.min(rawVel, 1));
 
-        playBell(currentNote, velocity);
+        // Make it easy to hit near 1.0: compress curve so most swings feel loud
+        const boosted = Math.pow(rawVel, 0.4); // sqrt-ish curve
+
+        playBell(currentNote, boosted);
       }
+
+      lastMagnitude = magnitude;
+      lastDelta = signedDelta;
     }
 
     function startMotionListening() {
       lastMagnitude = null;
+      lastDelta = 0;
+      inSwing = false;
       window.addEventListener("devicemotion", handleMotion);
     }
 
     function stopMotionListening() {
       window.removeEventListener("devicemotion", handleMotion);
       lastMagnitude = null;
+      lastDelta = 0;
       inSwing = false;
     }
 
@@ -468,7 +489,7 @@
           typeof DeviceMotionEvent.requestPermission === "function"
         ) {
           const res = await DeviceMotionEvent.requestPermission();
-          // We move on either way; if denied, tapping the note still works
+          // even if denied, tapping still works
           return res === "granted";
         } else {
           return true;
@@ -481,11 +502,10 @@
 
     // ---- UI FLOW ----
     startBtn.addEventListener("click", async () => {
-      // This tap is our golden gesture: wake audio + ask for motion
+      // Golden gesture: wake audio + ask for motion
       await resumeAudioCtx();
       await requestMotionPermission();
 
-      // Show note selection
       motionScreen.style.display = "none";
       noteScreen.style.display = "block";
     });
@@ -509,8 +529,13 @@
 
     backBtn.addEventListener("click", showNoteScreen);
 
-    // Tap note text to ring (fallback)
+    // Tap note text to ring (full loudness)
     playNoteLabel.addEventListener("click", () => {
+      if (currentNote) playBell(currentNote, 1);
+    });
+
+    // Tap bell graphic to ring (full loudness)
+    bellVisual.addEventListener("click", () => {
       if (currentNote) playBell(currentNote, 1);
     });
 
@@ -527,7 +552,7 @@
           await resumeAudioCtx();
           showPlayScreen(n);
           // Quick confirmation ring
-          playBell(n, 0.8);
+          playBell(n, 1);
         });
 
         noteGrid.appendChild(btn);
