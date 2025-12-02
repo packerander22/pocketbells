@@ -512,8 +512,8 @@
     });
 
 
-    // intensity 0..1 -> baseGain 1..volumeMaxGain (linear).
-    // Uses multiple inharmonic partials to sound more like a real bell.
+    // One pure sine note. intensity 0..1 -> baseGain 1..volumeMaxGain (linear).
+    // Big sharp hit, quick drop, long quiet tail.
     function playBell(note, intensity = 1, visualDir = null) {
       if (!note) return;
       ensureAudioCtx();
@@ -526,90 +526,59 @@
       const now = audioCtx.currentTime;
       const baseFreq = freqForNote(note.name, note.octave);
     
-      // Master gain node for overall envelope
-      const masterGain = audioCtx.createGain();
-      masterGain.connect(audioCtx.destination);
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+    
+      osc.type = "sine";
+      osc.frequency.cancelScheduledValues(now);
+      osc.frequency.setValueAtTime(baseFreq * 2, now); // one octave up
     
       const t = Math.min(Math.max(intensity, 0), 1);
       const minVol = 1.0;
-      const maxVol = volumeMaxGain;
+      const maxVol = volumeMaxGain; // 1..10 from your slider
       const baseGain = minVol + t * (maxVol - minVol); // 1..10 linear
     
-      // Envelope: very strong initial hit, quick drop, long quiet tail.
-      const ATTACK_HOLD = 0.02; // 20 ms
-      const DROP_TIME   = 0.07; // fast drop
+      // === ENVELOPE: big spike, quick drop, long tail ===
+      const ATTACK_HOLD = 0.015; // 15 ms full blast
+      const DROP_TIME   = 0.06;  // fast drop into tail
     
       const MIN_SUSTAIN = 1.0;
       const MAX_SUSTAIN = 5.0;
       const sustainDuration =
         MIN_SUSTAIN + sustainFactor * (MAX_SUSTAIN - MIN_SUSTAIN);
     
-      // Tail is quite soft compared to the hit
-      const sustainLevel = baseGain * 0.12;
+      // VERY quiet tail relative to the hit
+      const sustainLevel = baseGain * 0.10; // 10% of the hit
     
-      masterGain.gain.setValueAtTime(baseGain, now);
-      masterGain.gain.setValueAtTime(baseGain, now + ATTACK_HOLD);
-      masterGain.gain.linearRampToValueAtTime(
+      // 1) Instant strike at full baseGain
+      gain.gain.setValueAtTime(baseGain, now);
+      // 2) Hold the hit briefly
+      gain.gain.setValueAtTime(baseGain, now + ATTACK_HOLD);
+      // 3) Drop quickly to quiet tail
+      gain.gain.linearRampToValueAtTime(
         sustainLevel,
         now + ATTACK_HOLD + DROP_TIME
       );
-      masterGain.gain.exponentialRampToValueAtTime(
+      // 4) Let that quiet tail ring for the full sustainDuration
+      gain.gain.exponentialRampToValueAtTime(
         0.0001,
         now + sustainDuration
       );
     
-      // ---- Additive "bell" partials ----
-      // These ratios are intentionally inharmonic-ish to feel like a metal bell.
-      const partials = [
-        { ratio: 1.00, amp: 1.0 },  // fundamental
-        { ratio: 2.01, amp: 0.9 },  // slightly sharp second
-        { ratio: 2.63, amp: 0.6 },  // strong inharmonic
-        { ratio: 3.76, amp: 0.4 },  // higher clang
-        { ratio: 4.70, amp: 0.25 }, // high shimmer
-      ];
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
     
-      const oscNodes = [];
+      osc.start(now);
+      osc.stop(now + sustainDuration + 0.2);
     
-      partials.forEach((p) => {
-        const osc = audioCtx.createOscillator();
-        const g   = audioCtx.createGain();
-    
-        osc.type = "sine";
-        // Each partial has its own static frequency; no bends so pitch stays clean.
-        const f = baseFreq * p.ratio * 2; // still an octave up overall
-        osc.frequency.setValueAtTime(f, now);
-    
-        // Shape each partial a bit differently so highs die out quicker
-        const partialDuration = sustainDuration * (0.6 + 0.4 * Math.random());
-        const partialLevel    = p.amp;
-    
-        g.gain.setValueAtTime(partialLevel, now);
-        g.gain.exponentialRampToValueAtTime(
-          0.0001,
-          now + partialDuration
-        );
-    
-        osc.connect(g);
-        g.connect(masterGain);
-    
-        osc.start(now);
-        osc.stop(now + partialDuration + 0.1);
-    
-        oscNodes.push(osc);
-      });
-    
-      // ---- Visual bell animation (unchanged from your logic) ----
-      const minAngle = 10;   // degrees
-      const maxAngle = 32;   // degrees
-      const vel = t;         // reuse intensity for visual amplitude
+      // ---- your visual bell code stays the same ----
+      const minAngle = 10;
+      const maxAngle = 32;
+      const vel = t;
       const amp = minAngle + (maxAngle - minAngle) * vel;
-      const offset = amp;    // px
+      const offset = amp;
     
-      let dir = visualDir;
-      if (!dir) {
-        dir = Math.random() < 0.5 ? "left" : "right";
-      }
-    
+      let dir = visualDir || (Math.random() < 0.5 ? "left" : "right");
       let transform;
       if (dir === "left") {
         transform = `translate(${-offset}px, 0px) rotate(0deg)`;
