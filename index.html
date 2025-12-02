@@ -539,8 +539,8 @@
       const baseGain = minVol + t * (maxVol - minVol); // 1..10 linear
     
       // === ENVELOPE: big spike, quick drop, long tail ===
-      const ATTACK_HOLD = 0.02; // 15 ms full blast
-      const DROP_TIME   = 0.05;  // fast drop into tail
+      const ATTACK_HOLD = 0.1; // 15 ms full blast
+      const DROP_TIME   = 0.5;  // fast drop into tail
     
       const MIN_SUSTAIN = 1.0;
       const MAX_SUSTAIN = 5.0;
