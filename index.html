@@ -232,7 +232,7 @@
       margin-bottom: 0.8rem;
     }
 
-    /* VOLUME SLIDER (bottom center, where sustain used to be) */
+    /* Volume slider (bottom center, where sustain used to be) */
     .volume-wrapper {
       width: 100%;
       max-width: 220px;
@@ -274,7 +274,7 @@
   <!-- MOTION PERMISSION SCREEN -->
   <div class="app" id="motion-screen">
     <div class="card">
-      <div class="title">Pocket BellChoir</div>
+      <div class="title">Pocket Bells</div>
       <p class="subtitle">
         This app uses your phone’s motion sensors so you can swing it like a handbell.
         On iPhone, you’ll be asked to allow motion access.
@@ -290,7 +290,7 @@
     <div class="note-card">
       <div class="note-title">Choose your note</div>
       <div class="note-subtitle">
-        Full chromatic C3–C8. Each note uses the bell color palette.
+        Full chromatic C4–C7 (top note C7). Each note uses the bell color palette.
       </div>
 
       <div class="note-grid" id="note-grid">
@@ -323,7 +323,6 @@
       Tap the note or bell if needed.
     </div>
 
-    <!-- Volume slider (replacing sustain spot) -->
     <div class="volume-wrapper" id="volume-wrapper">
       <div class="volume-label-row">
         <span>Volume</span>
@@ -342,36 +341,38 @@
   </div>
 
   <script>
-    // ----- NOTE DEFINITIONS (programmatic C3..C8) -----
+    // ----- NOTE DEFINITIONS: chromatic C4–B6, plus C7 only -----
+    // Colors tuned to your scheme:
+    // C = red, D = orange, E = yellow, F = green,
+    // G = teal, A = blue, B = purple
     const PITCHES = [
-      { name: "C",  color: "#FF0000" },
-      { name: "C#", color: "#FF1493" },
-      { name: "D",  color: "#FF7F00" },
-      { name: "D#", color: "#FFB300" },
-      { name: "E",  color: "#FFFF00" },
-      { name: "F",  color: "#00FF00" },
-      { name: "F#", color: "#00C853" },
-      { name: "G",  color: "#0000FF" },
-      { name: "G#", color: "#00B0FF" },
-      { name: "A",  color: "#4B0082" },
-      { name: "A#", color: "#9400D3" },
-      { name: "B",  color: "#FF69B4" },
+      { name: "C",  color: "#FF3B30" }, // red
+      { name: "C#", color: "#FF2D92" }, // hot pink
+      { name: "D",  color: "#FF9500" }, // orange
+      { name: "D#", color: "#FFB300" }, // yellow-orange
+      { name: "E",  color: "#FFEB3B" }, // yellow
+      { name: "F",  color: "#34C759" }, // green
+      { name: "F#", color: "#00FF7F" }, // neon green
+      { name: "G",  color: "#00C7BE" }, // teal
+      { name: "G#", color: "#00B0FF" }, // cyan/blue-teal
+      { name: "A",  color: "#007AFF" }, // blue
+      { name: "A#", color: "#AF52DE" }, // magenta-purple
+      { name: "B",  color: "#5856D6" }, // purple
     ];
 
-    const OCTAVES = [3, 4, 5, 6, 7, 8];
+    const OCTAVES = [4, 5, 6, 7];
 
     const NOTES = [];
     OCTAVES.forEach((oct) => {
       PITCHES.forEach((p) => {
-        if (oct === 8 && p.name !== "C") return; // only C8 at top
-        const baseName = `${p.name}${oct}`;
-        // IMPORTANT: file names on disk use # literally, but URLs need %23
-        const fileName = `${p.name}${oct}.wav`;
-        const encodedFile = encodeURIComponent(fileName); // C#4.wav -> C%234.wav
+        if (oct === 7 && p.name !== "C") return; // only C7 in octave 7
+        const id = `${p.name}${oct}`;
+        const fileName = `${p.name}${oct}.wav`;   // e.g. "C#4.wav"
+        const encodedFile = encodeURIComponent(fileName);
 
         NOTES.push({
-          id: baseName,
-          label: baseName,
+          id,
+          label: id,
           file: `audio/${encodedFile}`,
           color: p.color,
         });
@@ -379,24 +380,24 @@
     });
 
     // ---- DOM ELEMENTS ----
-    const motionScreen = document.getElementById("motion-screen");
-    const noteScreen = document.getElementById("note-screen");
-    const playScreen = document.getElementById("play-screen");
+    const motionScreen  = document.getElementById("motion-screen");
+    const noteScreen    = document.getElementById("note-screen");
+    const playScreen    = document.getElementById("play-screen");
 
-    const startBtn = document.getElementById("start-btn");
-    const noteGrid = document.getElementById("note-grid");
-    const backBtn = document.getElementById("back-btn");
+    const startBtn      = document.getElementById("start-btn");
+    const noteGrid      = document.getElementById("note-grid");
+    const backBtn       = document.getElementById("back-btn");
     const playNoteLabel = document.getElementById("play-note-label");
-    const bellRing = document.getElementById("bell-ring");
-    const bellVisual = document.getElementById("bell-visual");
+    const bellRing      = document.getElementById("bell-ring");
+    const bellVisual    = document.getElementById("bell-visual");
 
-    const volumeWrapper = document.getElementById("volume-wrapper");
-    const volumeSlider = document.getElementById("volume-slider");
+    const volumeWrapper    = document.getElementById("volume-wrapper");
+    const volumeSlider     = document.getElementById("volume-slider");
     const volumeValueLabel = document.getElementById("volume-value-label");
 
-    // ---- AUDIO SETUP (sample-based) ----
+    // ---- AUDIO (sample based) ----
     let audioCtx = null;
-    let volumeMaxGain = 10.0; // slider: 1..10
+    let volumeMaxGain = 10.0;
     const noteBuffers = new Map(); // id -> AudioBuffer
 
     function ensureAudioCtx() {
@@ -427,25 +428,22 @@
     }
 
     async function loadNoteBuffer(note) {
-      if (noteBuffers.has(note.id)) {
-        return noteBuffers.get(note.id);
-      }
+      if (noteBuffers.has(note.id)) return noteBuffers.get(note.id);
       ensureAudioCtx();
       if (!audioCtx) return null;
 
       const resp = await fetch(note.file);
-      const arr = await resp.arrayBuffer();
-      const buffer = await audioCtx.decodeAudioData(arr);
-      noteBuffers.set(note.id, buffer);
-      return buffer;
+      const arr  = await resp.arrayBuffer();
+      const buf  = await audioCtx.decodeAudioData(arr);
+      noteBuffers.set(note.id, buf);
+      return buf;
     }
 
-    // Headphone warning (blocking)
+    // Headphone warning
     let headphoneWarningShown = false;
     function showHeadphoneWarningOnce() {
       if (headphoneWarningShown) return;
       headphoneWarningShown = true;
-
       alert(
         "Important: Please DO NOT use headphones when using this app — the bells can be EXTREMELY loud!\n\n" +
         "You're probably thinking to yourself, \"Oh it can't be *that* loud, can it?\"\n" +
@@ -454,7 +452,7 @@
       );
     }
 
-    // Volume slider: controls maximum gain from 1..10 (full volume for any qualifying swing)
+    // Volume slider
     volumeValueLabel.textContent = volumeSlider.value;
     volumeSlider.addEventListener("input", () => {
       volumeMaxGain = parseFloat(volumeSlider.value);
@@ -462,8 +460,7 @@
     });
 
     // Play bell sample:
-    // - ALWAYS at full volumeMaxGain (no partial-volume playing)
-    // - intensity only affects visual motion, not loudness
+    // -> ALWAYS at full volumeMaxGain (intensity only affects visuals)
     async function playBell(note, intensity = 1, visualDir = null) {
       if (!note) return;
       ensureAudioCtx();
@@ -481,15 +478,13 @@
       src.buffer = buffer;
 
       const gain = audioCtx.createGain();
-      // FULL volume: use volumeMaxGain directly, no scaling by intensity
       gain.gain.setValueAtTime(volumeMaxGain, now);
 
       src.connect(gain);
       gain.connect(audioCtx.destination);
-
       src.start(now);
 
-      // ---- Visual bell animation ----
+      // Visual bell motion — intensity only
       const t = Math.min(Math.max(intensity, 0), 1);
       const minOffset = 10;
       const maxOffset = 32;
@@ -516,36 +511,33 @@
       }, 180);
     }
 
-    // ---- MOTION HANDLING (peak + directional change, visual based on jerk) ----
+    // ---- MOTION HANDLING ----
     let currentNote = null;
     let lastRingTime = 0;
 
     const MIN_INTERVAL   = 200;   // ms between rings
-    const DELTA_RING_MIN = 5.0;   // minimum threshold (unchanged)
-    const DELTA_RING_MAX = 10.0;  // used only for intensity / visual, not volume
-    const RESET_DELTA    = 1.5;   // below this, swing ends
+    const DELTA_RING_MIN = 3.0;   // threshold (unchanged)
+    const DELTA_RING_MAX = 10.0;  // for visual intensity only
+    const RESET_DELTA    = 1.5;
 
     let inSwing = false;
     let lastMagnitude = null;
-    let lastDelta = 0;              // previous signed delta
-
+    let lastDelta = 0;
     let lastAx = null, lastAy = null, lastAz = null;
 
-    // Choose direction from jerk vector (change in acceleration)
     function computeVisualDirFromJerk(jx, jy, jz) {
       const absX = Math.abs(jx);
       const absY = Math.abs(jy);
       const absZ = Math.abs(jz);
-
       const maxComp = Math.max(absX, absY, absZ);
-      const MIN_JERK = 0.3; // noise floor for jerk
+      const MIN_JERK = 0.3;
 
       if (maxComp < MIN_JERK) {
         return Math.random() < 0.5 ? "left" : "right";
       }
 
       if (maxComp === absX) {
-        // jerk to the right -> bell visual left, and vice versa
+        // jerk right => bell left, and vice versa
         return jx > 0 ? "left" : "right";
       } else if (maxComp === absY) {
         return jy > 0 ? "up" : "down";
@@ -567,7 +559,7 @@
       const ay = acc.y || 0;
       const az = acc.z || 0;
 
-      const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+      const magnitude = Math.sqrt(ax*ax + ay*ay + az*az);
 
       if (lastMagnitude === null || lastAx === null) {
         lastMagnitude = magnitude;
@@ -582,15 +574,13 @@
       const jz = az - lastAz;
 
       const signedDelta = magnitude - lastMagnitude;
-      const absDelta = Math.abs(signedDelta);
-      const now = performance.now();
+      const absDelta    = Math.abs(signedDelta);
+      const now         = performance.now();
 
-      // Reset swing when jerk settles
       if (absDelta < RESET_DELTA) {
         inSwing = false;
       }
 
-      // Look for a reversal in jerk to mimic "swing then catch"
       const prevSign = Math.sign(lastDelta);
       const currSign = Math.sign(signedDelta);
       const wasBuilding = Math.abs(lastDelta) > DELTA_RING_MIN;
@@ -609,24 +599,18 @@
           inSwing = true;
           lastRingTime = now;
 
-          // Normalize peak to 0..1 for visual intensity only
-          const clamped = Math.min(Math.max(peak, DELTA_RING_MIN), DELTA_RING_MAX);
-          let intensity =
-            (clamped - DELTA_RING_MIN) / (DELTA_RING_MAX - DELTA_RING_MIN); // 0..1
-
-          if (!Number.isFinite(intensity) || intensity < 0) intensity = 0;
-          if (intensity > 1) intensity = 1;
+          const clamped =
+            Math.min(Math.max(peak, DELTA_RING_MIN), DELTA_RING_MAX);
+          const intensity =
+            (clamped - DELTA_RING_MIN) / (DELTA_RING_MAX - DELTA_RING_MIN);
 
           const visualDir = computeVisualDirFromJerk(jx, jy, jz);
-
-          // IMPORTANT: volume is NOT scaled by intensity at all.
-          // Any qualifying swing plays at full volumeMaxGain.
           playBell(currentNote, intensity, visualDir);
         }
       }
 
       lastMagnitude = magnitude;
-      lastDelta = signedDelta;
+      lastDelta     = signedDelta;
       lastAx = ax;
       lastAy = ay;
       lastAz = az;
@@ -658,7 +642,6 @@
           const res = await DeviceMotionEvent.requestPermission();
           return res === "granted";
         } else {
-          // Non-iOS or older: no explicit permission API
           return true;
         }
       } catch (err) {
@@ -670,7 +653,6 @@
     // ---- UI FLOW ----
     startBtn.addEventListener("click", async () => {
       await resumeAudioCtx();
-
       const granted = await requestMotionPermission();
 
       if (!granted) {
@@ -681,7 +663,7 @@
       }
 
       motionScreen.style.display = "none";
-      noteScreen.style.display = "block";
+      noteScreen.style.display   = "block";
       showHeadphoneWarningOnce();
     });
 
@@ -691,7 +673,7 @@
       playScreen.style.background = note.color;
       noteScreen.style.display = "none";
       playScreen.classList.add("active");
-
+      volumeWrapper.style.display = "flex";
       startMotionListening();
     }
 
@@ -700,11 +682,11 @@
       stopMotionListening();
       playScreen.classList.remove("active");
       noteScreen.style.display = "block";
+      volumeWrapper.style.display = "none";
     }
 
     backBtn.addEventListener("click", showNoteScreen);
 
-    // Tap note text or bell to ring (full volume, visual intensity fixed at 1)
     playNoteLabel.addEventListener("click", () => {
       if (currentNote) playBell(currentNote, 1, null);
     });
@@ -724,7 +706,6 @@
         btn.addEventListener("click", async () => {
           await resumeAudioCtx();
           showPlayScreen(n);
-          // Confirmation ping at full volume (visual dir random)
           playBell(n, 1, null);
         });
 
@@ -734,7 +715,7 @@
 
     initNoteButtons();
 
-    // Auto-skip motion screen when explicit permission API isn't needed
+    // Auto-skip permission screen on platforms without explicit API
     window.addEventListener("load", () => {
       const needsExplicitPermission =
         typeof DeviceMotionEvent !== "undefined" &&
@@ -742,12 +723,11 @@
 
       if (!needsExplicitPermission) {
         motionScreen.style.display = "none";
-        noteScreen.style.display = "block";
+        noteScreen.style.display   = "block";
         showHeadphoneWarningOnce();
       }
     });
 
-    // Extra safety: try to resume / create audio on any touchstart
     window.addEventListener(
       "touchstart",
       () => {
@@ -756,7 +736,6 @@
       { passive: true }
     );
 
-    // When coming back to the tab / page, reset audio context so next gesture makes a fresh, non-muted one
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         resetAudioContextOnReturn();
